@@ -1,6 +1,6 @@
 package hotelWeatherReading
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Encoders, SparkSession}
 
 /**
  * @author ${user.name}
@@ -17,24 +17,13 @@ object App {
       .read
       .format("kafka")
       .option("kafka.bootstrap.servers", "localhost:9094")
-      .option("maxOffsetsPerTrigger", 12334342328L)
-      .option("subscribe", "daysUnique")
-      .load();
-
-    println(df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
-      .count())
-    //      .foreach(row => println(row))
+      .option("maxOffsetsPerTrigger", 1233L)
+      .option("subscribe", "hotelDailyData")
+      .load()
+      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "partition","timestamp")
+      .foreach(row => println(row.getString(1)))
 
 
-    //
-    //    df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
-    //      .encoder
-    //
-    //    df.show()
-
-    //    val numAs = logData.filter(line => line.contains("a")).count()
-    //    val numBs = logData.filter(line => line.contains("b")).count()
-    //    println(s"Lines with a: $numAs, Lines with b: $numBs")
     spark.stop()
   }
 
