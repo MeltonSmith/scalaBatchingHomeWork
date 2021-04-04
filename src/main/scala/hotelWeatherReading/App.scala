@@ -17,10 +17,10 @@ object App {
       .read
       .format("kafka")
       .option("kafka.bootstrap.servers", "localhost:9094")
-      .option("maxOffsetsPerTrigger", 1233L)
-      .option("subscribe", "hotelDailyData")
+      .option("maxOffsetsPerTrigger", 123389L)
+      .option("subscribe", "weather")
       .load()
-      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "partition","timestamp")
+      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "partition", "timestamp")
       .foreach(row => println(row.getString(1)))
 
 
