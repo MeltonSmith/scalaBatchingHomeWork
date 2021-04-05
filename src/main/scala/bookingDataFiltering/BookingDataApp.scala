@@ -23,8 +23,6 @@ object BookingDataApp {
       //        .filter("hotel_id == 2680059592710")
 
 
-//    println("Before: " + expedia.count())
-
     val hotelsKafka = spark
       .read
       .format("kafka")
@@ -36,32 +34,48 @@ object BookingDataApp {
     val hotels = spark.read
                       .json(hotelsKafka.selectExpr("CAST(value as STRING) as value")
                                         .map(row => row.toString()))
-//                      .filter("Country == 'US'")
-//                      .foreach(row => println(row))
-
-
 
     val w = Window.partitionBy("hotel_id").orderBy("srch_ci")
 
-    val invalidData = expedia
-                  .withColumn("previousDate", lag("srch_ci", 1).over(w))
-                  .withColumn("idle_days", datediff(col("srch_ci"), col("previousDate")))
-                  .join(hotels.as("hotels"), expedia.col("hotel_id").equalTo(hotels.col("id")))
-                  .where("idle_days >= 2 AND idle_days < 30")
-                  .select(hotels.col("Id"), hotels.col("Name"), hotels.col("Address"), hotels.col("Country"), col("idle_days"))
+    val expediaWithHotels = expedia
+                              .withColumn("previousDate", lag("srch_ci", 1).over(w))
+                              .withColumn("idle_days", datediff(col("srch_ci"), col("previousDate")))
+                              .join(hotels.as("hotels"), expedia.col("hotel_id").equalTo(hotels.col("id")))
 
-//    invalidData
-//      .select(hotels.col("Id"), hotels.col("Name"), hotels.col("Address"), hotels.col("Country"), col("idle_days"))
-//      .show(false)
+    val invalidData = expediaWithHotels
+                                .where("idle_days >= 2 AND idle_days < 30")
+                                .select(hotels.col("Id"), hotels.col("Name"), hotels.col("Address"), hotels.col("Country"), col("idle_days"))
 
-    val l = expedia.as("expedia")
-      .join(invalidData.as("invalidData"), expedia.col("hotel_id").equalTo(invalidData.col("Id")), "leftanti")
-      .count()
-
-//    println("After: " + l)
+    val validExpediaWithHotels = expediaWithHotels.as("validExp")
+                      .join(invalidData.as("invalidData"),
+                        $"validExp.hotel_id" === $"invalidData.Id",
+                        "leftanti")
 
 
+//    grouping remaning data
+    validExpediaWithHotels
+      .groupBy("Country")
+      .agg(count("*").as("booking count per country"))
+      .show(false)
 
+    val groupedByCity = validExpediaWithHotels
+                .groupBy("Country", "City")
+                .agg(count("*").as("booking count per city"))
+    val countInt = groupedByCity.count().asInstanceOf[Int]
+    groupedByCity.show(countInt)
+
+
+    val validExpediaToSave = expedia.as("expedia")
+                                  .join(invalidData.as("invalidData"),
+                                    expedia.col("hotel_id").equalTo(invalidData.col("Id")),
+                                    "leftanti").as[BookingData]
+
+    validExpediaToSave
+                      .withColumn("check_in_year", year(col("srch_ci")))
+                      .write
+                      .partitionBy("check_in_year")
+                      .format("avro")
+                      .save("/201 HW Dataset/validExpedia")
 
     spark.close()
   }
