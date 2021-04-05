@@ -23,7 +23,6 @@ object App {
       .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "partition", "timestamp")
       .foreach(row => println(row.getString(1)))
 
-
     spark.stop()
   }
 
