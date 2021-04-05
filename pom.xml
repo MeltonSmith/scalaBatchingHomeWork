@@ -43,6 +43,11 @@
       <artifactId>spark-sql-kafka-0-10_2.12</artifactId>
       <version>3.1.1</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-avro_2.12</artifactId>
+      <version>3.1.1</version>
+    </dependency>
 
     <!-- Test -->
     <dependency>
@@ -95,40 +100,40 @@
           </execution>
         </executions>
       </plugin>
-<!--      <plugin>-->
-<!--        <groupId>org.apache.maven.plugins</groupId>-->
-<!--        <artifactId>maven-shade-plugin</artifactId>-->
-<!--        <version>3.0.0</version>-->
-<!--        <executions>-->
-<!--          <execution>-->
-<!--            <phase>package</phase>-->
-<!--            <goals>-->
-<!--              <goal>shade</goal>-->
-<!--            </goals>-->
-<!--            <configuration>-->
-<!--              <filters>-->
-<!--                &lt;!&ndash; This filter is to workaround the problem caused by included signed jars.-->
-<!--                     java.lang.SecurityException: Invalid signature file digest for Manifest main attributes-->
-<!--                &ndash;&gt;-->
-<!--                <filter>-->
-<!--                  <artifact>*:*</artifact>-->
-<!--                  <excludes>-->
-<!--                    <exclude>META-INF/*.SF</exclude>-->
-<!--                    <exclude>META-INF/*.DSA</exclude>-->
-<!--                    <exclude>META-INF/*.RSA</exclude>-->
-<!--                  </excludes>-->
-<!--                </filter>-->
-<!--              </filters>-->
-<!--              <transformers>-->
-<!--                <transformer-->
-<!--                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">-->
-<!--                  <mainClass>com.example.KafkaConsumer</mainClass>-->
-<!--                </transformer>-->
-<!--              </transformers>-->
-<!--            </configuration>-->
-<!--          </execution>-->
-<!--        </executions>-->
-<!--      </plugin>-->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.0.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <filters>
+                <!-- This filter is to workaround the problem caused by included signed jars.
+                     java.lang.SecurityException: Invalid signature file digest for Manifest main attributes
+                -->
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer
+                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.example.KafkaConsumer</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
