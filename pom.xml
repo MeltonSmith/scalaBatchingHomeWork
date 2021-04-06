@@ -74,6 +74,12 @@
       <version>${spec2.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.github.mrpowers</groupId>
+      <artifactId>spark-fast-tests_2.12</artifactId>
+      <version>1.0.0</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
