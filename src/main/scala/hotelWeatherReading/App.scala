@@ -8,10 +8,7 @@ import org.apache.spark.sql.{Encoders, SparkSession}
 object App {
 
   def main(args: Array[String]) {
-
-    //    val logFile = "/Users/Ian_Rakhmatullin/Desktop/README.md"
     val spark = SparkSession.builder.appName("HotelWeather Reading Application").getOrCreate()
-    //    val logData = spark.read.textFile(logFile).cache()
 
     val df = spark
       .read

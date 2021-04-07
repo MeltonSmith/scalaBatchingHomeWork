@@ -73,7 +73,7 @@ object BookingDataApp {
 
     val validExpediaWithHotels = expediaWithHotels.as("validExp")
       .join(invalidData.as("invalidData"),
-        $"validExp." + hotel_id_column === $"invalidData." + id_column,
+        $"validExp.hotel_id" === $"invalidData.Id",
         "leftanti")
 
     //    grouping remaining data for console printing
