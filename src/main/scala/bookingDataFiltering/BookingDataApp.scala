@@ -10,6 +10,11 @@ import org.apache.spark.sql.{DataFrame, Dataset, Encoder, Row, SparkSession}
  * Date: 04.04.2021
  */
 object BookingDataApp {
+  val check_in_column = "srch_ci"
+  val country_column = "Country"
+  val id_column = "Id"
+  val hotel_id_column = "hotel_id"
+
   def main(args: Array[String]): Unit = {
 
 
@@ -26,7 +31,7 @@ object BookingDataApp {
                             .option("maxOffsetsPerTrigger", 123389L)
                             .option("subscribe", "hotels")
                             .load()
-    //TODO might as well do a test here
+
     val hotels = spark.read
                       .json(hotelsKafka.selectExpr("CAST(value as STRING) as value")
                       .map(row => row.toString()))
@@ -44,43 +49,42 @@ object BookingDataApp {
   }
 
   /**
-   * TODO
-   * @param spark
-   * @param expedia
-   * @param hotels
-   * @return
+   * @param spark spark session
+   * @param expedia input expedia
+   * @param hotels input hotels
+   * @return valid expedia data ready for writing
    */
   def getValidExpediaData(spark: SparkSession, expedia: DataFrame, hotels: DataFrame) = {
     import spark.implicits._
 
-    val w = Window.partitionBy("hotel_id").orderBy("srch_ci")
+    val w = Window.partitionBy(hotel_id_column).orderBy(check_in_column)
 
     val expediaWithHotels = expedia
-                              .withColumn("previousDate", lag("srch_ci", 1).over(w))
-                              .withColumn("idle_days", datediff(col("srch_ci"), col("previousDate")))
-                              .join(hotels.as("hotels"), expedia.col("hotel_id").equalTo(hotels.col("id")))
+                              .withColumn("previousDate", lag(check_in_column, 1).over(w))
+                              .withColumn("idle_days", datediff(col(check_in_column), col("previousDate")))
+                              .join(hotels.as("hotels"), expedia.col(hotel_id_column).equalTo(hotels.col("id")))
 
     val invalidData = expediaWithHotels
                             .where("idle_days >= 2 AND idle_days < 30")
-                            .select(hotels.col("Id"),
+                            .select(hotels.col(id_column),
                                     hotels.col("Name"),
                                     hotels.col("Address"),
-                                    hotels.col("Country"),
+                                    hotels.col(country_column),
                                     col("idle_days"))
 
     val validExpediaWithHotels = expediaWithHotels.as("validExp")
       .join(invalidData.as("invalidData"),
-        $"validExp.hotel_id" === $"invalidData.Id",
+        $"validExp." + hotel_id_column === $"invalidData." + id_column,
         "leftanti")
 
     //    grouping remaining data for console printing
     validExpediaWithHotels
-                    .groupBy("Country")
+                    .groupBy(country_column)
                     .agg(count("*").as("booking count per country"))
                     .show(false)
 
     val groupedByCity = validExpediaWithHotels
-                    .groupBy("Country", "City")
+                    .groupBy(country_column, "City")
                     .agg(count("*").as("booking count per city"))
     val countInt = groupedByCity.count().asInstanceOf[Int]
     groupedByCity.show(countInt)
@@ -88,9 +92,9 @@ object BookingDataApp {
 
     val validExpediaToSave = expedia.as("expedia")
       .join(invalidData.as("invalidData"),
-        expedia.col("hotel_id").equalTo(invalidData.col("Id")),
+        expedia.col(hotel_id_column).equalTo(invalidData.col(id_column)),
         "leftanti")
-      .withColumn("check_in_year", year(col("srch_ci")))
+      .withColumn("check_in_year", year(col(check_in_column)))
 
     validExpediaToSave
   }
