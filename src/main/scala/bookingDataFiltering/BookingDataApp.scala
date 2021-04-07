@@ -3,6 +3,7 @@ package bookingDataFiltering
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.{DataFrame, Dataset, Encoder, Row, SparkSession}
+import org.apache.spark.storage.StorageLevel.MEMORY_ONLY
 
 
 /**
@@ -22,7 +23,6 @@ object BookingDataApp {
     val expedia = spark.read
                         .format("avro")
                         .load("/201 HW Dataset/expedia")
-//                        .as[BookingData]
     //hotels from kafka for joining
     val hotelsKafka = spark.read
                             .format("kafka")
@@ -34,6 +34,9 @@ object BookingDataApp {
     val hotels = spark.read
                       .json(hotelsKafka.selectExpr("CAST(value as STRING) as value")
                       .map(row => row.toString()))
+
+    hotels.persist(MEMORY_ONLY)
+    expedia.persist(MEMORY_ONLY)
 
     val validExpediaToSave = getValidExpediaData(spark, expedia, hotels)
 
@@ -70,11 +73,13 @@ object BookingDataApp {
                                     hotels.col("Address"),
                                     hotels.col(country_column),
                                     col("idle_days"))
+    invalidData.persist(MEMORY_ONLY)
 
     val validExpediaWithHotels = expediaWithHotels.as("validExp")
       .join(invalidData.as("invalidData"),
         $"validExp.hotel_id" === $"invalidData.Id",
         "leftanti")
+    validExpediaWithHotels.persist(MEMORY_ONLY)
 
     //    grouping remaining data for console printing
     validExpediaWithHotels
@@ -85,9 +90,10 @@ object BookingDataApp {
     val groupedByCity = validExpediaWithHotels
                     .groupBy(country_column, "City")
                     .agg(count("*").as("booking count per city"))
+    groupedByCity.persist(MEMORY_ONLY)
+
     val countInt = groupedByCity.count().asInstanceOf[Int]
     groupedByCity.show(countInt)
-
 
     val validExpediaToSave = expedia.as("expedia")
       .join(invalidData.as("invalidData"),
@@ -95,6 +101,6 @@ object BookingDataApp {
         "leftanti")
       .withColumn("check_in_year", year(col(check_in_column)))
 
-    validExpediaToSave
+    validExpediaToSave.persist(MEMORY_ONLY)
   }
 }
