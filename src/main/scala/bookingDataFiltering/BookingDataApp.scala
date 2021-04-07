@@ -16,29 +16,28 @@ object BookingDataApp {
   val hotel_id_column = "hotel_id"
 
   def main(args: Array[String]): Unit = {
-
-
     val spark = SparkSession.builder.appName("Booking Data Application").getOrCreate()
     import spark.implicits._
+    //reading expedia from hdfs
     val expedia = spark.read
                         .format("avro")
                         .load("/201 HW Dataset/expedia")
 //                        .as[BookingData]
-
+    //hotels from kafka for joining
     val hotelsKafka = spark.read
                             .format("kafka")
                             .option("kafka.bootstrap.servers", "localhost:9094")
                             .option("maxOffsetsPerTrigger", 123389L)
                             .option("subscribe", "hotels")
                             .load()
-
+    //transforming to have only a "payload" of value
     val hotels = spark.read
                       .json(hotelsKafka.selectExpr("CAST(value as STRING) as value")
                       .map(row => row.toString()))
 
     val validExpediaToSave = getValidExpediaData(spark, expedia, hotels)
 
-    //save to hdfs
+    //saving to hdfs
     validExpediaToSave
                       .write
                       .partitionBy("check_in_year")
@@ -54,7 +53,7 @@ object BookingDataApp {
    * @param hotels input hotels
    * @return valid expedia data ready for writing
    */
-  def getValidExpediaData(spark: SparkSession, expedia: DataFrame, hotels: DataFrame) = {
+  def getValidExpediaData(spark: SparkSession, expedia: DataFrame, hotels: DataFrame): DataFrame = {
     import spark.implicits._
 
     val w = Window.partitionBy(hotel_id_column).orderBy(check_in_column)

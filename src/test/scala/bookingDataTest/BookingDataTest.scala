@@ -11,12 +11,12 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 
 /**
+ * Testing of getValidExpediaData of BookingDataApp
+ *
  * Created by: Ian_Rakhmatullin
  * Date: 06.04.2021
  */
 class BookingDataTest extends FunSpec with SparkSessionTestWrapper with DatasetComparer{
-
-
 
   it("should contain all the records") {
     val hotels = Seq(
