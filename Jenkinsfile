@@ -1,13 +1,10 @@
 pipeline {
-    agent {
-            docker { image 'maven:3.8.1-adoptopenjdk-11' }
-        }
-     stages {
-            stage('Test') {
+    agent { docker { image 'maven:3.3.3' } }
+        stages {
+            stage('build') {
                 steps {
                     sh 'mvn --version'
                 }
-            }    
-     }
-
+            }
+        }
 }
