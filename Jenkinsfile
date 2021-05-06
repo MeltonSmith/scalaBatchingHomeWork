@@ -4,13 +4,19 @@ pipeline {
         maven 'Maven3'
     }
 
-
     stages {
         stage('build') {
             steps {
-                sh 'mvn --version'
-                sh 'mvn package'
+                echo 'Building phase'
+                sh 'mvn compile'
             }
+        }
+
+        stage('test') {
+             steps {
+                echo 'Testing phase'
+                sh 'mvn compile'
+             }
         }
     }
 }
