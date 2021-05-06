@@ -5,7 +5,7 @@ pipleline {
      stages {
             stage('Test') {
                 steps {
-                    sh 'node --version'
+                    sh 'mvn --version'
                 }
             }    
      }
