@@ -40,6 +40,18 @@ object SparkLogAnalysis {
 
 //    getLoadStatsForOnWindow(getReadPlainTextLogsWithDateColumns)
 
+    getStatsHardCounted(getReadPlainTextLogsWithDateColumns)
+      .show()
+
+
+  }
+
+  def getStatsHardCounted(targetDf: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    targetDf
+      .groupBy("podName")
+      .agg(max("localTime").alias("maxTime"), min("localTime").alias("minTime"), count("*").alias("logcount"))
+      .withColumn("diffInSeconds", col("maxTime").cast("long") - col("minTime").cast("long"))
+      .withColumn("averagehard", col("logcount") / col("diffInSeconds"))
   }
 
   def getLoadStatsForOnWindow(targetDf: DataFrame)(implicit spark: SparkSession): DataFrame = {
