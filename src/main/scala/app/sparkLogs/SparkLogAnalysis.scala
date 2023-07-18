@@ -1,6 +1,6 @@
 package app.sparkLogs
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
@@ -16,58 +16,99 @@ object SparkLogAnalysis {
       .appName("log analysis")
       .getOrCreate()
 
+    val execTextRegex = """(.+\d\))"""
+
     val fluentBitLogs = spark.read
       .option("multiline", "true")
       .json("/Users/ian_rakhmatullin/Desktop/Datatech/RWA/tasks/fixLogging/120034120120/spark_cleansed.json")
       .withColumn("localTime", to_timestamp(col("localTime"), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
-
-//    fluentBitLogs.groupBy("podName")
-//      .count().show()
-
-    //    fluentBitLogs
-    //      .groupBy("sparkAppType", "podName", "loggerName")
-    //      .count()
-    //      .select("loggerName", "count")
-    //      .show(10000000,false )
+      .withColumn("hour", hour(col("localTime")))
+      .withColumn("minute", minute(col("localTime")))
+      .withColumn("second", second(col("localTime")))
+      .withColumn("text", trim(col("text")))
+      .withColumn("text", when(col("text").startsWith(lit("1 block locks were not")), regexp_extract(col("text"), execTextRegex, 1))
+        .otherwise(col("text")))
 
     //load
     val fluentBitLogsDfGropedBySec = fluentBitLogs
-      .groupBy(hour(col("localTime").alias("hour")),
-        minute(col("localTime").alias("minute")),
-        second(col("localTime").alias("second")),
-        col("podName"))
-      .agg(count("*").alias("count_per_sec"))
+      .groupBy(col("hour"), col("minute"), col("second"), col("podName"))
+      .agg(count("*").alias("count_per_sec"),
+          avg(length(col("text"))).as("avg_size_per_sec"),
+      )
       .groupBy("podName")
       .agg("count_per_sec" -> "avg",
         "count_per_sec" -> "max",
         "count_per_sec" -> "min",
-        "count_per_sec" -> "stddev_pop")
+        "count_per_sec" -> "stddev_pop",
+        "avg_size_per_sec" -> "avg",
+        "avg_size_per_sec" -> "max")
+      .show()
+  }
 
-    val plainTextLogs = SparkLogAnalysisPlainText.readPlainLogs
-      .groupBy(hour(col("localTime")).alias("hour"),
-              minute(col("localTime")).alias("minute"),
-              second(col("localTime")).alias("second"),
-              col("podName"))
-      .agg(count("*").as("count_per_sec_pt"))
+  /**
+   * Diffs between console and fluent bit
+   * @param fluentBitLogs -df with logs
+   * @param plainTextLogs - df with logs
+   */
+  private def resolveDiffsBetweenTheseTwo(fluentBitLogs: DataFrame, plainTextLogs: DataFrame): Unit = {
+    val plainGroupTextLogs = plainTextLogs
+      .groupBy("hour", "minute", "second", "podName")
+      .agg(count("*").as("count_pt"))
 
 
     val fbGroupedLogs = fluentBitLogs
-      .groupBy(hour(col("localTime")).alias("hour"),
-              minute(col("localTime")).alias("minute"),
-              second(col("localTime")).alias("second"),
-              col("podName"))
-      .agg(count("*").as("count_per_sec_fb"))
-
-    fbGroupedLogs.as("fb")
-      .join(plainTextLogs.as("pt"), Seq("hour", "minute", "second", "podName"), "left")
-      .withColumn("diff", col("count_per_sec_fb").minus(col("count_per_sec_pt")))
-      .filter("diff > 0")
-      .show()
+      .groupBy(col("hour"), col("minute"), col("second"), col("podName"))
+      .agg(count("*").as("count_fb"))
 
 
+    val diffsBySecAndPodDf = getDiffsBySecAndPod(plainGroupTextLogs, fbGroupedLogs)
+
+
+    printLogsCount(fluentBitLogs, plainTextLogs)
+
+
+    //    println(frame2
+    //      .filter(col("podName") === "ian-k8s-exec-exec-4")
+    //      .filter(col("text") === "")
+    //      .count())
+
+    //    val except = frame1.except(frame2)
+
+    //    val except = frame2.except(frame1)
+
+    //6 for whole stage gen + code from fluent side. Its better idea to set CodeGenerator to WARN
+    //same from plain side + null null null
+
+    //    except
+    //      .join(plainTextLogs.as("self"), Seq("hour", "minute", "second", "podName", "text"), "left")
+    //      .select("hour", "minute", "second", "podName", "text", "self.loggerName")
+    //      .show()
 
   }
 
+  private def getReadPlainTextLogsWithDateColumns(implicit spark: SparkSession) = {
+    val plainTextLogs = SparkLogAnalysisPlainText.readPlainLogs
+      .withColumn("hour", hour(col("localTime")))
+      .withColumn("minute", minute(col("localTime")))
+      .withColumn("second", second(col("localTime")))
+    plainTextLogs
+  }
+
+  private def printLogsCount(fluentBitLogs: DataFrame, plainTextLogs: DataFrame): Unit = {
+    val frame1 = fluentBitLogs.select("hour", "minute", "second", "podName", "text")
+      .filter(col("hour").isNotNull)
+    val frame2 = plainTextLogs.select("hour", "minute", "second", "podName", "text")
+      .filter(col("hour").isNotNull)
+
+    println(frame1.count() + " " + frame2.count())
+  }
+
+  private def getDiffsBySecAndPod(plainTextLogs: DataFrame, fbGroupedLogs: DataFrame): DataFrame = {
+    fbGroupedLogs.as("fb")
+      .join(plainTextLogs.as("pt"), Seq("hour", "minute", "second", "podName"), "left")
+      .withColumn("diff", col("count_fb").minus(col("count_pt")))
+      .filter("diff == 0")
+  }
 
   private def getTslgLogSchema = {
     List(

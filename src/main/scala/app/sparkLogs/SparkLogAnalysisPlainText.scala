@@ -1,6 +1,6 @@
 package app.sparkLogs
 
-import org.apache.spark.sql.functions.{col, lit, regexp_extract, to_timestamp}
+import org.apache.spark.sql.functions.{col, lit, regexp_extract, to_timestamp, trim}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 /**
@@ -9,13 +9,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
  */
 object SparkLogAnalysisPlainText {
 
-  def readPlainLogs: DataFrame = {
-    implicit val spark: SparkSession = SparkSession
-      .builder
-      .master("local[*]")
-      .appName("log plainText")
-      .getOrCreate()
-
+  def readPlainLogs(implicit sparkSession: SparkSession): DataFrame = {
 
 
     val sparkDriverLogFilePath = "/Users/ian_rakhmatullin/Desktop/Datatech/RWA/tasks/fixLogging/120034120120/arrow-spark-9ea7838944d08a83-driver-spark-kubernetes-driver.log"
@@ -31,19 +25,19 @@ object SparkLogAnalysisPlainText {
 
   implicit class ReadSparkLog(path: String)(implicit spark: SparkSession) {
     def readSparkLogs: DataFrame =  {
-      val apacheSparkLogRegex = """(\d+\/\d+\/\d+\s\d*:\d*:\d*)\s(DEBUG|INFO|WARN|FATAL|ERROR|TRACE)\s([a-zA-Z]+:)(.*)"""
+      val apacheSparkLogRegex = """(\d+\/\d+\/\d+\s\d*:\d*:\d*)\s(DEBUG|INFO|WARN|FATAL|ERROR|TRACE)\s([a-zA-Z$]+:|$)(.*)"""
 
       var frame = spark.read
         .text(path)
         .withColumn("localTime", to_timestamp(regexp_extract(col("value"), apacheSparkLogRegex, 1), "dd/MM/yy HH:mm:ss"))
         .withColumn("level", regexp_extract(col("value"), apacheSparkLogRegex, 2))
         .withColumn("loggerName", regexp_extract(col("value"), apacheSparkLogRegex, 3))
-        .withColumn("message", regexp_extract(col("value"), apacheSparkLogRegex, 4))
+        .withColumn("text", trim(regexp_extract(col("value"), apacheSparkLogRegex, 4)))
         .drop("value")
 
       //todo hardcode
       "ian-k8s-exec-exec-\\d+".r.findFirstIn(path) match {
-        case Some(value) => frame = frame.withColumn("podName", lit(value))
+        case Some(value) => frame = frame.withColumn("podName", lit(value)).filter(col("text") =!= "")
         case _ => frame = frame.withColumn("podName", lit("arrow-spark-9ea7838944d08a83-driver"))
       }
       frame
