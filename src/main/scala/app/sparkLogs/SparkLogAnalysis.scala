@@ -29,11 +29,25 @@ object SparkLogAnalysis {
       .withColumn("text", when(col("text").startsWith(lit("1 block locks were not")), regexp_extract(col("text"), execTextRegex, 1))
         .otherwise(col("text")))
 
+    //just count
+    //    showFluentBitLogsGroupedByPodAndLogName(fluentBitLogs)
+
     //load
-    val fluentBitLogsDfGropedBySec = fluentBitLogs
-      .groupBy(col("hour"), col("minute"), col("second"), col("podName"))
+//    getLoadStatsFor(fluentBitLogs)
+//      .show
+//    getLoadStatsFor(getReadPlainTextLogsWithDateColumns)
+//      .show
+
+//    getLoadStatsForOnWindow(getReadPlainTextLogsWithDateColumns)
+
+  }
+
+  def getLoadStatsForOnWindow(targetDf: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    import spark.implicits._
+    targetDf
+      .groupBy(window($"localTime", "1 second"), $"podName")
       .agg(count("*").alias("count_per_sec"),
-          avg(length(col("text"))).as("avg_size_per_sec"),
+        avg(length(col("text"))).as("avg_size_per_sec"),
       )
       .groupBy("podName")
       .agg("count_per_sec" -> "avg",
@@ -42,9 +56,22 @@ object SparkLogAnalysis {
         "count_per_sec" -> "stddev_pop",
         "avg_size_per_sec" -> "avg",
         "avg_size_per_sec" -> "max")
-      .show()
+  }
 
-//    showFluentBitLogsGroupedByPodAndLogName(fluentBitLogs)
+
+  def getLoadStatsFor(targetDf: DataFrame)(implicit spark: SparkSession): DataFrame = {
+    targetDf
+      .groupBy(col("hour"), col("minute"), col("second"), col("podName"))
+      .agg(count("*").alias("count_per_sec"),
+        avg(length(col("text"))).as("avg_size_per_sec"),
+      )
+      .groupBy("podName")
+      .agg("count_per_sec" -> "avg",
+        "count_per_sec" -> "max",
+        "count_per_sec" -> "min",
+        "count_per_sec" -> "stddev_pop",
+        "avg_size_per_sec" -> "avg",
+        "avg_size_per_sec" -> "max")
   }
 
   def showFluentBitLogsGroupedByPodAndLogName(fluentBitLogs: DataFrame): Unit = {
