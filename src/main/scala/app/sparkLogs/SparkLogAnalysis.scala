@@ -43,10 +43,20 @@ object SparkLogAnalysis {
         "avg_size_per_sec" -> "avg",
         "avg_size_per_sec" -> "max")
       .show()
+
+//    showFluentBitLogsGroupedByPodAndLogName(fluentBitLogs)
+  }
+
+  def showFluentBitLogsGroupedByPodAndLogName(fluentBitLogs: DataFrame): Unit = {
+    fluentBitLogs.groupBy("podName", "loggerName")
+      .count()
+      .orderBy(desc("count"))
+      .show(10000, false)
   }
 
   /**
    * Diffs between console and fluent bit
+ *
    * @param fluentBitLogs -df with logs
    * @param plainTextLogs - df with logs
    */
